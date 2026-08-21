@@ -1,0 +1,87 @@
+{
+  "model": "xgboost",
+  "version": "1.0",
+  "features": [
+    "url_length",
+    "num_dots",
+    "num_hyphens",
+    "num_digits",
+    "num_special_chars",
+    "num_subdomains",
+    "has_ip_address",
+    "has_at_symbol",
+    "has_https",
+    "has_suspicious_keyword",
+    "url_entropy",
+    "num_query_params"
+  ],
+  "training_dataset": "PhiUSIIL Phishing URL Dataset (sampled, n=15000)",
+  "metrics": {
+    "accuracy": 0.9643,
+    "precision": 0.9485,
+    "recall": 0.982,
+    "f1": 0.965,
+    "confusion_matrix": [
+      [
+        1420,
+        80
+      ],
+      [
+        27,
+        1473
+      ]
+    ]
+  },
+  "all_models_compared": {
+    "logistic_regression": {
+      "accuracy": 0.9513,
+      "precision": 0.9253,
+      "recall": 0.982,
+      "f1": 0.9528,
+      "confusion_matrix": [
+        [
+          1381,
+          119
+        ],
+        [
+          27,
+          1473
+        ]
+      ]
+    },
+    "random_forest": {
+      "accuracy": 0.9607,
+      "precision": 0.9493,
+      "recall": 0.9733,
+      "f1": 0.9612,
+      "confusion_matrix": [
+        [
+          1422,
+          78
+        ],
+        [
+          40,
+          1460
+        ]
+      ]
+    },
+    "xgboost": {
+      "accuracy": 0.9643,
+      "precision": 0.9485,
+      "recall": 0.982,
+      "f1": 0.965,
+      "confusion_matrix": [
+        [
+          1420,
+          80
+        ],
+        [
+          27,
+          1473
+        ]
+      ]
+    }
+  },
+  "selection_reasoning": "Selected for highest recall (0.982), prioritized over raw accuracy because missing a real phishing URL (false negative) is more costly than wrongly flagging a safe one. Tied on recall (~0.982) with ['logistic_regression', 'xgboost'], broke the tie using F1 score.",
+  "training_date": "2026-08-21T05:58:43.019959+00:00"
+}
