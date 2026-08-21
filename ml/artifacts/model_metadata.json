@@ -83,5 +83,5 @@
     }
   },
   "selection_reasoning": "Selected for highest recall (0.982), prioritized over raw accuracy because missing a real phishing URL (false negative) is more costly than wrongly flagging a safe one. Tied on recall (~0.982) with ['logistic_regression', 'xgboost'], broke the tie using F1 score.",
-  "training_date": "2026-08-21T05:58:43.019959+00:00"
+  "training_date": "2026-08-21T06:04:00.344495+00:00"
 }
