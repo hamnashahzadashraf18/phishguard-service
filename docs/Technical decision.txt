@@ -1,0 +1,38 @@
+# Technical Decisions
+
+## Problem Statement
+
+Digitalsofts receives URLs from various business applications and needs
+an automated way to assess whether a given URL poses a security risk
+before it reaches end users...
+
+[...rest of the text from above...]
+## Feature Selection
+
+I selected 11 URL-based features that can be computed directly from
+the URL string alone, without needing to visit the URL or fetch the
+destination page. This is intentional: the assessment brief notes
+that visiting submitted URLs is not required, and doing so would add
+security risk, latency, and a dependency on the target site being
+reachable at prediction time.
+
+| Feature | What it measures | Why it matters for phishing |
+|---|---|---|
+| url_length | Total character count | Phishing URLs are often unusually long to hide the real destination |
+| num_dots | Count of `.` characters | More dots often means more subdomains, a common phishing trick |
+| num_hyphens | Count of `-` characters | Phishing domains often use hyphens to mimic brand names |
+| num_digits | Count of digit characters | Legit brand domains rarely mix in random numbers |
+| num_special_chars | Count of unusual symbols | Excessive special characters can indicate obfuscation |
+| num_subdomains | Number of subdomain levels | Phishing sites stack subdomains to look more legitimate |
+| has_ip_address | Is the hostname a raw IP? | Attackers can't get a real domain quickly, so they use raw IPs |
+| has_at_symbol | Does the URL contain `@`? | Browsers ignore text before `@`, a classic disguise trick |
+| has_https | Is the URL using HTTPS? | Not definitive alone, but its absence is still a useful signal |
+| has_suspicious_keyword | Contains words like "login", "verify", "confirm" | Phishing pages lean on urgency/trust language |
+| url_entropy | How "random-looking" the URL text is | Auto-generated phishing domains look statistically random |
+
+Redirect count and live page content were intentionally excluded,
+since evaluating them would require fetching the destination page.
+
+This is 11 features rather than exactly 10, since the assessment
+asks for a "reasonable feature set" rather than an exact count, and
+each feature above has a distinct, non-redundant justification.
