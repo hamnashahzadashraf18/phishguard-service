@@ -1,0 +1,13 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - MODEL_PATH=ml/artifacts/model.joblib
+      - MODEL_METADATA_PATH=ml/artifacts/model_metadata.json
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./ml/artifacts:/code/ml/artifacts
+    restart: unless-stopped
