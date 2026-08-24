@@ -5,9 +5,7 @@
 Digitalsofts receives URLs from various business applications and needs
 an automated way to assess whether a given URL poses a security risk
 before it reaches end users...
-
-[...rest of the text from above...]
-## Feature Selection
+Feature Selection
 
 I selected 11 URL-based features that can be computed directly from
 the URL string alone, without needing to visit the URL or fetch the
@@ -36,3 +34,133 @@ since evaluating them would require fetching the destination page.
 This is 11 features rather than exactly 10, since the assessment
 asks for a "reasonable feature set" rather than an exact count, and
 each feature above has a distinct, non-redundant justification.
+Q2. Why is accuracy not enough for phishing detection?
+
+Accuracy just measures the overall percentage of correct predictions,
+and it can be misleadingly high on an imbalanced dataset. In this
+project, the training data was roughly 56% legitimate / 44% phishing
+after sampling — but in the real world, most URLs a system encounters
+are legitimate. A model that just predicted "legitimate" for
+everything could still score high on accuracy while catching zero
+actual phishing attempts.
+
+Practical example:if 95% of incoming URLs are legitimate, a
+model that always predicts "legitimate" gets 95% accuracy — and is
+completely useless, since it misses every single phishing URL. This
+is exactly why I evaluated all three models on precision, recall,
+and F1 instead of accuracy alone, and specifically prioritized
+recall when picking the final model (see Q1).
+
+Q3. What happens if the model receives completely different data from the training dataset?
+
+This is called distribution shift— when real-world input starts
+looking statistically different from what the model was trained on.
+For this project, that could happen if:
+- Phishing tactics evolve (new keyword patterns, different URL
+  structures) that didn't exist in the PhiUSIIL dataset
+- The service starts receiving URLs in formats or languages
+  underrepresented in training
+
+Model degradation: when this happens, the model's real-world
+accuracy silently drops below what was measured during evaluation,
+even though the model itself hasn't changed.
+
+Monitoring:in a production system, I would want to log
+prediction confidence distributions over time and set up alerting if
+the proportion of low-confidence or borderline predictions increases
+sharply — that's often an early signal of drift, before accuracy
+visibly drops.
+
+Retraining: the fix is periodically retraining on fresh, recent
+data. Since this project's `extractor.py` and `train.py` are
+separated from the API layer, retraining and swapping in a new
+`model.joblib` doesn't require changing any API code — just running
+`train.py` again with updated data and replacing the artifact.
+
+Q4. How would you improve this system if it had 10 million predictions per day?
+
+10 million/day is roughly 116 requests/second sustained, so several
+things would need to change:
+
+-API scaling: run multiple instances of the FastAPI service
+  behind a load balancer, rather than the single container this
+  project currently runs as. Since the model loads once at startup
+  per instance (not per-request), this scales horizontally without
+  much extra work.
+-Caching:many URLs get checked repeatedly (e.g. the same
+  phishing campaign hitting many users). A cache (Redis) keyed on
+  URL hash, with a short TTL, would avoid recomputing features and
+  re-running the model for URLs already scored recently.
+-Async processing:for non-urgent use cases, prediction requests
+  could be queued and processed asynchronously rather than
+  synchronously, smoothing out traffic spikes.
+-Model inference optimization: at this scale, converting the
+  XGBoost model to a faster inference format, or batching
+  predictions, would reduce per-request compute cost.
+-Observability:structured logging, request IDs, and latency
+  metrics (mentioned as optional enhancements in the assessment)
+  become necessary, not optional, at this volume — you can't debug
+  problems at 10M/day without them.
+
+Q5. What happens if the model file is corrupted or unavailable?
+
+The API is built to fail predictably rather than crash. In
+`app/services/model_service.py`, the `load()` method wraps the
+model-loading step in a try/except block. If the file is missing or
+corrupted, `self.loaded` stays `False` instead of the app crashing on
+startup.
+
+From there:
+- `GET /health` reports `"status": "degraded"` and
+  `"model_loaded": false`, so monitoring/uptime checks can detect the
+  problem immediately
+- `POST /predict` and `GET /model` both check `model_service.loaded`
+  first and return a `503 Service Unavailable` with a structured
+  error (`MODEL_UNAVAILABLE`) instead of attempting to use a model
+  that isn't there
+- The actual error is logged server-side (`logger.error(...)`) for
+  debugging, but never exposed to the caller — consistent with the
+  requirement not to leak internals in error responses
+
+Q6. What security risks exist in accepting arbitrary URLs?
+
+Several, even though this service never visits the submitted URLs:
+
+-Malicious input / injection:a malformed or adversarial string
+  could be crafted to break parsing logic. `extract_features()` uses
+  `urlparse` (a standard, well-tested library) specifically to avoid
+  writing fragile custom parsing that could be exploited.
+-SSRF (Server-Side Request Forgery):this risk applies if a
+  service *fetches* the submitted URL. This project deliberately does
+  not do that — features are computed from the URL string alone —
+  which sidesteps SSRF entirely rather than trying to defend against
+  it.
+-Resource exhaustion:an extremely long URL string could be sent
+  repeatedly to slow down or exhaust server resources. The API
+  rejects overly long inputs at the validation layer before they
+  reach the feature extractor.
+-Logging sensitive data: URLs can contain sensitive query
+  parameters (tokens, session IDs). The logging strategy avoids
+  logging full raw URLs for this reason.
+-Rate limiting:currently not implemented in this project (noted
+  under Future Improvements) — without it, the API is vulnerable to
+  being flooded with requests, which ties back into the resource
+  exhaustion concern above.
+
+Q7. If the model has 99% accuracy but poor recall for phishing URLs, would you deploy it?
+
+No. This is directly the scenario the recall-prioritized model
+selection in this project was designed to avoid (see Q1 and Q2). A
+99%-accuracy model with poor recall almost certainly means it's
+failing to catch a meaningful share of actual phishing URLs — likely
+because the dataset is imbalanced toward legitimate URLs, letting the
+model "coast" on accuracy while quietly missing the exact cases the
+system exists to catch.
+
+For a phishing detector specifically, a false negative (missed
+phishing site) has a real, direct cost — a user gets scammed. A false
+positive (a legitimate site flagged as suspicious) is a minor
+inconvenience by comparison. So I would not deploy a high-accuracy,
+low-recall model here, and would instead choose a model with a
+better recall/precision balance, even if its headline accuracy number
+looks slightly less impressive on paper.
